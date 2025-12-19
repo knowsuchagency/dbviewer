@@ -1,0 +1,222 @@
+# Tool version management
+[tools]
+bun = "latest"
+go = "1.25.0"
+node = "latest"
+
+# Environment configuration
+[env]
+COMPOSE_BAKE = "true"
+_.file = ".env"
+
+# Task definitions
+[tasks.install-backend-deps]
+description = "Install backend dependencies"
+run = "go mod tidy"
+
+[tasks.install-frontend-deps]
+description = "Install frontend dependencies"
+run = "cd frontend && bun install"
+
+[tasks.install-deps]
+depends = ["install-backend-deps", "install-frontend-deps"]
+description = "Install all dependencies (backend and frontend)"
+
+[tasks.init]
+depends = ["install-deps"]
+description = "Initialize the project"
+run = '''
+#!/bin/bash
+if [ ! -f .env ]; then
+    cp .env.example .env
+    echo "Setting up superuser credentials..."
+    
+    # Force interactive mode by opening /dev/tty for both input and output
+    exec < /dev/tty
+    exec > /dev/tty
+    
+    # Read email
+    printf "Enter superuser email: "
+    read -r email
+    
+    # Read password (hidden)
+    printf "Enter superuser password: "
+    read -rs password
+    echo # New line after password
+    
+    # Restore stdout to write to wherever mise expects
+    exec > /dev/stdout
+    
+    # Use sed to replace the values in .env
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        sed -i '' "s/SUPERUSER_EMAIL=.*/SUPERUSER_EMAIL=$email/" .env
+        sed -i '' "s/SUPERUSER_PASSWORD=.*/SUPERUSER_PASSWORD=$password/" .env
+    else
+        # Linux
+        sed -i "s/SUPERUSER_EMAIL=.*/SUPERUSER_EMAIL=$email/" .env
+        sed -i "s/SUPERUSER_PASSWORD=.*/SUPERUSER_PASSWORD=$password/" .env
+    fi
+    
+    echo "✅ .env file created with your credentials"
+else
+    echo "✅ .env file already exists"
+fi
+'''
+
+[tasks.dev-frontend]
+depends = ["install-frontend-deps"]
+description = "Run frontend dev server"
+run = "cd frontend && bun run dev"
+
+[tasks.dev-backend]
+depends = ["install-backend-deps"]
+description = "Start the PocketBase development server"
+run = "go run main.go serve --dev --http 0.0.0.0:8090"
+
+[tasks.dev]
+depends = ["install-deps"]
+description = "Run both frontend and backend in development mode"
+run = 'npx concurrently --names "frontend,backend" --prefix-colors "cyan,magenta" "cd frontend && bun run dev --host" "go run main.go serve --dev --http 0.0.0.0:8090"'
+
+[tasks.build]
+depends = ["install-deps"]
+description = "Build both backend binary and frontend"
+run = """
+go build -o pocketbase main.go
+cd frontend && bun run build
+"""
+
+[tasks.test-backend]
+depends = ["install-backend-deps"]
+description = "Run backend tests"
+run = "go test -v ./..."
+
+[tasks.test-frontend]
+depends = ["install-frontend-deps"]
+description = "Run frontend tests"
+run = "cd frontend && bun run test"
+
+[tasks.test]
+depends = ["test-backend", "test-frontend"]
+description = "Run all tests"
+
+[tasks.makemigration]
+description = "Create a new database migration with the specified name"
+run = 'echo "y" | go run . migrate create "{{arg(name="name")}}"'
+
+[tasks.migrate]
+description = "Run all pending database migrations"
+run = "go run . migrate up"
+
+[tasks.migratedown]
+description = "Rollback the last database migration"
+run = "go run . migrate down"
+
+[tasks.update-deps]
+description = "Update all dependencies to their latest versions"
+run = """
+go get -u ./...
+go mod tidy
+cd frontend && bun update --latest
+"""
+
+[tasks.update-pocketbase]
+description = "Update PocketBase to the latest version"
+run = """
+go get github.com/pocketbase/pocketbase@latest
+go mod tidy
+"""
+
+[tasks.check-updates]
+description = "Check for available updates to all dependencies"
+run = "go list -m -u all"
+
+[tasks.show-collections]
+description = "Show collections in a human and LLM readable format (use --hidden to include hidden collections)"
+run = '''
+#!/bin/bash
+# this command is flaky, so we need to run it twice
+go run cmd/show-collections.go show-collections 2>&1 > /dev/null
+go run cmd/show-collections.go show-collections
+'''
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = """
+rm -rf frontend/build
+rm -f pocketbase
+echo "✅ Build artifacts cleaned"
+"""
+
+[tasks.backup]
+description = "Backup the database to system temp directory"
+run = """
+#!/bin/bash
+if [ -f "./pb_data/data.db" ]; then
+    BACKUP_DIR="/tmp"
+    # Remove trailing slash if present
+    BACKUP_DIR="${BACKUP_DIR%/}"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    PROJECT_NAME=$(basename "$PWD")
+    BACKUP_FILE="$BACKUP_DIR/${PROJECT_NAME}_pocketbase_backup_${TIMESTAMP}.db"
+    cp ./pb_data/data.db "$BACKUP_FILE"
+    echo "📦 Database backed up to: $BACKUP_FILE"
+else
+    echo "⚠️  No database file found to backup."
+fi
+"""
+
+[tasks.reset]
+depends = ["backup"]
+description = "Reset the database"
+run = """
+#!/bin/bash
+echo "⚠️  WARNING: This will permanently delete all database data!"
+echo -n "Are you sure you want to reset the database? (y/N): "
+read -r confirm
+if [[ "$confirm" =~ ^[Yy]$ ]]; then
+    rm -rf ./pb_data/*
+    echo "✅ Database reset complete."
+else
+    echo "Reset cancelled."
+fi
+"""
+
+[tasks.typecheck]
+depends = ["install-frontend-deps"]
+description = "Run TypeScript type checking"
+run = "cd frontend && bun run typecheck"
+
+[tasks.test-ui]
+depends = ["install-frontend-deps"]
+description = "Run Playwright tests with interactive UI"
+run = "cd frontend && bun run test:ui"
+
+[tasks.test-headed]
+depends = ["install-frontend-deps"]
+description = "Run Playwright tests in headed browser mode"
+run = "cd frontend && bun run test:headed"
+
+[tasks.test-debug]
+depends = ["install-frontend-deps"]
+description = "Debug Playwright tests interactively"
+run = "cd frontend && bun run test:debug"
+
+[tasks.test-report]
+depends = ["install-frontend-deps"]
+description = "Show HTML test report"
+run = "cd frontend && bun run test:report"
+
+[tasks.build-frontend]
+depends = ["install-frontend-deps"]
+description = "Build frontend for production"
+run = "cd frontend && bun run build"
+
+[tasks.preview-frontend]
+description = "Preview production build by running PocketBase"
+run = "./pocketbase serve"
+
+[tasks.deploy]
+description = "Deploy using Docker Compose"
+run = "docker-compose up -d"

@@ -1,0 +1,25 @@
+x-common-volumes: &common-volumes
+  - ${PB_DATA:-./pb_data}:/app/pb_data
+  - ./migrations:/app/migrations
+
+services:
+  migrate:
+    build: .
+    volumes: *common-volumes
+    environment:
+      - SUPERUSER_EMAIL=${SUPERUSER_EMAIL}
+      - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD}
+    command: ["./pocketbase", "migrate", "up"]
+    restart: "no"
+
+  pocketbase:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8090}:8090"
+    volumes: *common-volumes
+    environment:
+      - SUPERUSER_EMAIL=${SUPERUSER_EMAIL}
+      - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD}
+    depends_on:
+      - migrate
