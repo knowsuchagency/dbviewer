@@ -1,6 +1,6 @@
-# PocketBase Project
+# dbviewer
 
-A modern full-stack application featuring a Go-based [PocketBase](https://pocketbase.io/) backend API and React Router v7 frontend styled with Tailwind CSS and shadcn/ui components.
+A project for inspecting PostgreSQL databases.
 
 ## Architecture Overview
 
