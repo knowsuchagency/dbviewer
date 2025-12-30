@@ -1,4 +1,4 @@
-# dbviewer
+# WIP: dbviewer
 
 A project for inspecting PostgreSQL databases.
 
