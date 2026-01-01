@@ -361,3 +361,4 @@ Then edit the generated file in the `migrations/` directory. For collection migr
 ### Frontend
 - No environment variables needed - the frontend automatically connects to the correct backend URL
 # Test Thu Jan  1 04:08:36 AM UTC 2026
+# Test Thu Jan  1 04:10:07 AM UTC 2026
